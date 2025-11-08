@@ -1,0 +1,36 @@
+# Ignore learned images (keeps recognized metadata but not raw image captures)
+/learned_items/*.jpg
+/learned_items/*.jpeg
+/learned_items/*.png
+/learned_items/*.bmp
+
+# Ignore model binaries and partial downloads
+/models/*.gguf
+/models/*.pt
+/models/*.bin
+/models/*.crdownload
+
+# Python caches and environments
+__pycache__/
+*.py[cod]
+*.pyo
+env/
+venv/
+.venv/
+
+# Build artifacts
+/build/
+
+# Editor configs
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
