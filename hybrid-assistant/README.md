@@ -1,6 +1,8 @@
 # Hybrid Assistant
 
-A local, privacy-focused hybrid assistant that combines camera-based visual detection with a local LLM backend. Teach the assistant new objects through the GUI or chat, and get intelligent scene descriptions and object recognition—all running locally.
+A local, privacy-focused **face recognition and chatbot** application that combines camera-based visual detection with a local LLM backend. Teach the assistant to recognize faces and objects through the GUI or chat, get intelligent scene descriptions, and have conversations—all running locally and offline.
+
+Developed by **@daqa020** with ❤️
 
 ## Features
 
@@ -141,6 +143,12 @@ hybrid-assistant/
 ## License
 
 MIT License — See [LICENSE](LICENSE) for details.
+
+## 🙏 Special Thanks
+
+This project was made possible thanks to:
+
+- **[@jinnosux](https://github.com/jinnosux)** — For providing the hardware tools and the original idea that inspired this project. Your vision made this possible! 🚀
 
 ## Contributing
 
