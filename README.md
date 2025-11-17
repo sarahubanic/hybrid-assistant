@@ -4,6 +4,12 @@ A local, privacy-focused **face recognition and chatbot** application that combi
 
 Developed by **@daqa020** with ❤️
 
+## 🙏 Special Thanks
+
+This project was made possible thanks to:
+
+- **[@jinnosux](https://github.com/jinnosux)** — For providing the hardware tools and the original idea that inspired this project. Your vision made this possible! 🚀
+
 ## Features
 
 - **Live Camera GUI** — Real-time video feed with object detection overlays and interactive chat panel
@@ -144,11 +150,6 @@ hybrid-assistant/
 
 MIT License — See [LICENSE](LICENSE) for details.
 
-## 🙏 Special Thanks
-
-This project was made possible thanks to:
-
-- **[@jinnosux](https://github.com/jinnosux)** — For providing the hardware tools and the original idea that inspired this project. Your vision made this possible! 🚀
 
 ## Contributing
 
