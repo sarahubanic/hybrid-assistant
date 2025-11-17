@@ -1,0 +1,9 @@
+pillow
+opencv-contrib-python
+ultralytics
+torch
+transformers
+accelerate
+uvicorn[standard]
+requests
+numpy
