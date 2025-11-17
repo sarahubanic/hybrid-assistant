@@ -18,48 +18,57 @@ A local, privacy-focused hybrid assistant that combines camera-based visual dete
 
 - Python 3.11+
 - Camera (webcam or USB)
-- Ollama running locally (see [INSTRUCTIONS.md](INSTRUCTIONS.md) for setup)
+- Ollama installed and running (see [INSTRUCTIONS.md](INSTRUCTIONS.md) for setup)
 
-### Installation
+### ⚡ Getting Started (Windows)
 
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/sarahubanic/hybrid-assistant.git
+   cd hybrid-assistant
+   ```
+
+2. **That's it! Just double-click `run.bat`**
+   - The script will automatically:
+     - Create a virtual environment
+     - Install all dependencies
+     - Ask you to choose a mode (CPU / CUDA / Hybrid)
+     - Start the app
+
+3. **Start Ollama** (in a separate terminal/window):
+   ```bash
+   ollama serve
+   ```
+
+### Manual Setup (Advanced)
+
+If you prefer manual control:
 ```bash
-# Clone the repo
-git clone https://github.com/sarahubanic/hybrid-assistant.git
-cd hybrid-assistant
-
 # Create virtual environment
 python -m venv venv
-source venv/Scripts/activate  # On Windows: venv\Scripts\activate
+venv\Scripts\activate  # Windows
 
 # Install dependencies
 pip install -r requirements.txt
-```
 
-### Running the Assistant
-
-**Easiest way (Windows):**
-```bash
-# Just double-click run.bat
-# It will:
-# - Create a virtual environment (if needed)
-# - Install dependencies
-# - Show a menu to choose: CPU / CUDA / Hybrid mode
-# - Start the app
-```
-
-**Manual method:**
-```bash
-# Start Ollama (in a separate terminal)
-ollama serve
-
-# In another terminal, run the GUI
+# Run the app
 python detection_gui.py
 ```
 
-**Available launchers:**
-- `run.bat` — Interactive launcher with mode selection (Windows)
-- `start_assistant.bat` — CPU-only launcher (Windows)
-- `start_assistant.sh` — Launcher (Linux/Mac)
+### Linux / macOS
+
+```bash
+git clone https://github.com/sarahubanic/hybrid-assistant.git
+cd hybrid-assistant
+
+# Create and activate venv
+python -m venv venv
+source venv/bin/activate
+
+# Install and run
+pip install -r requirements.txt
+python detection_gui.py
+```
 
 ## Usage
 
