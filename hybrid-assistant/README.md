@@ -37,6 +37,17 @@ pip install -r requirements.txt
 
 ### Running the Assistant
 
+**Easiest way (Windows):**
+```bash
+# Just double-click run.bat
+# It will:
+# - Create a virtual environment (if needed)
+# - Install dependencies
+# - Show a menu to choose: CPU / CUDA / Hybrid mode
+# - Start the app
+```
+
+**Manual method:**
 ```bash
 # Start Ollama (in a separate terminal)
 ollama serve
@@ -45,11 +56,10 @@ ollama serve
 python detection_gui.py
 ```
 
-Or use the provided batch script:
-```bash
-./start_assistant.bat  # Windows
-./start_assistant.sh   # Linux/Mac
-```
+**Available launchers:**
+- `run.bat` — Interactive launcher with mode selection (Windows)
+- `start_assistant.bat` — CPU-only launcher (Windows)
+- `start_assistant.sh` — Launcher (Linux/Mac)
 
 ## Usage
 
