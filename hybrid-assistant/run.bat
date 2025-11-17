@@ -51,6 +51,17 @@ if errorlevel 1 (
     echo Continuing anyway...
 )
 
+REM Run pre-flight checks
+echo.
+echo Running pre-flight checks...
+%PYTHON% startup_check.py
+if errorlevel 1 (
+    echo.
+    echo Pre-flight checks failed. Fix issues and try again.
+    pause
+    exit /b 1
+)
+
 REM Show mode selection menu
 echo.
 echo ============================================
