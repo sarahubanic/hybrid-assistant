@@ -93,8 +93,23 @@ python detection_gui.py
 
 ### Chat Commands
 
-- **`Teach: object_name - description`** — Teach from text
-- Regular chat — Ask questions about what the camera sees
+- **`Teach: object_name - description`** — Teach the assistant using text only. Example:
+   - `Teach: Umbrella - A collapsible black umbrella commonly stored in a bag`
+   - The assistant will add this to the local knowledge base and use it for recognition and replies.
+
+- **`teach:`** and **`Teach:`** are treated equivalently (case-insensitive) by the GUI.
+
+- **`Search: query`** or **`pretrazi: query`** — Perform a DuckDuckGo search and return concise results (title, short snippet, URL).
+   - Example: `Search: current weather in London`
+   - Example (Serbian): `pretrazi: vreme u Beogradu`
+
+- **`Add object` (GUI)** — Use the Teach dialog to visually add objects:
+   1. Click **"Teach Me Something"**.
+   2. Freeze the camera frame when the object is visible.
+   3. Draw a **rectangle** or **polygon** around the object (or use face mode for faces).
+   4. Enter a **Name** and **Description** and click **Save**. The object and its CLIP embedding will be stored in `learned_items/`.
+
+- **`Teach:` (chat + image)** — For future improvements the app will support `Teach:` combined with an attached image or `Send + Img` button to teach from a crop; currently, use the Teach dialog for visual teaching.
 
 ## Files
 

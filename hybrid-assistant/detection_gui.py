@@ -24,6 +24,14 @@ try:
 except Exception:
     # llama_cpp is optional if using Ollama HTTP backend; allow the GUI to run without it
     Llama = None
+# Prefer the renamed package `ddgs`. Fall back to older `duckduckgo_search` if present.
+try:
+    from ddgs import DDGS
+except Exception:
+    try:
+        from duckduckgo_search import DDGS
+    except Exception:
+        DDGS = None
 
 class DetectionGUI:
     def send_with_frame(self):
@@ -851,6 +859,61 @@ class DetectionGUI:
             print(f"Error initializing face cascade: {e}")
             self.face_cascade = None
 
+    def refresh_ollama_models(self):
+        """Query the Ollama models API and update comboboxes with the current list."""
+        try:
+            url = os.environ.get('OLLAMA_MODELS_URL', 'http://127.0.0.1:11434/api/tags')
+            resp = requests.get(url, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                self.available_models = [m['name'] for m in data.get('models', [])]
+                print(f"[OLLAMA] Refreshed models: {self.available_models}")
+                # Update UI widgets if present
+                try:
+                    if hasattr(self, 'chat_combo') and self.chat_combo:
+                        self.chat_combo.config(values=self.available_models if self.available_models else self.chat_combo.cget('values'))
+                    if hasattr(self, 'embed_combo') and self.embed_combo:
+                        self.embed_combo.config(values=self.available_models if self.available_models else self.embed_combo.cget('values'))
+                except Exception as e:
+                    print(f"[OLLAMA] Error updating comboboxes: {e}")
+            else:
+                print(f"[OLLAMA] Warning: Could not fetch models (status {resp.status_code})")
+        except Exception as e:
+            print(f"[OLLAMA] Warning: Could not query models: {e}")
+
+    def openai_generate(self, prompt, model='gpt-3.5-turbo', max_tokens=400):
+        """Generate text using OpenAI Chat Completions API via requests. Returns text or None."""
+        key = os.environ.get('OPENAI_API_KEY')
+        if not key:
+            print("[OPENAI] No OPENAI_API_KEY set in environment")
+            return None
+        url = 'https://api.openai.com/v1/chat/completions'
+        headers = {
+            'Authorization': f'Bearer {key}',
+            'Content-Type': 'application/json'
+        }
+        body = {
+            'model': model,
+            'messages': [
+                {'role': 'system', 'content': 'You are a helpful assistant.'},
+                {'role': 'user', 'content': prompt}
+            ],
+            'max_tokens': max_tokens,
+            'temperature': 0.7
+        }
+        try:
+            r = requests.post(url, headers=headers, json=body, timeout=30)
+            if r.status_code == 200:
+                data = r.json()
+                if 'choices' in data and len(data['choices']) > 0:
+                    msg = data['choices'][0].get('message', {})
+                    return msg.get('content') or msg.get('text')
+            else:
+                print(f"[OPENAI] API error status {r.status_code}: {r.text}")
+        except Exception as e:
+            print(f"[OPENAI] Exception calling API: {e}")
+        return None
+
         self.load_face_recognizer()
         self.load_visual_db() # Ovo sada učitava CLIP
     
@@ -981,6 +1044,7 @@ class DetectionGUI:
     def create_gui(self):
         main_container = ttk.Frame(self.window)
         # --- IZMENA (Zahtev 1): Glavni kontejner se rasteže ---
+        # Ovo je bilo pomenuto kao već omogućeno, potvrđujemo
         main_container.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
         
         left_frame = ttk.Frame(main_container)
@@ -1014,6 +1078,7 @@ class DetectionGUI:
         )
         embed_combo.pack(side=tk.LEFT)
         embed_combo.bind('<<ComboboxSelected>>', lambda e: setattr(self, 'embed_model', self.embed_model_var.get()))
+        self.embed_combo = embed_combo
         
         chat_lbl = ttk.Label(controls, text="Chat:")
         chat_lbl.pack(side=tk.LEFT, padx=(10,2))
@@ -1031,6 +1096,30 @@ class DetectionGUI:
             os.environ['HA_CHAT_MODEL'] = val
             print(f"[CONFIG] Chat model set to: {val}")
         chat_combo.bind('<<ComboboxSelected>>', _on_chat_model_change)
+        self.chat_combo = chat_combo
+
+        # Backend selection (Ollama or OpenAI)
+        backend_lbl = ttk.Label(controls, text="Backend:")
+        backend_lbl.pack(side=tk.LEFT, padx=(10,2))
+        self.backend_var = tk.StringVar(value=getattr(self, 'backend', os.environ.get('HA_BACKEND', 'ollama')))
+        backend_combo = ttk.Combobox(
+            controls,
+            textvariable=self.backend_var,
+            values=['ollama', 'openai'],
+            width=10
+        )
+        backend_combo.pack(side=tk.LEFT)
+        def _on_backend_change(e=None):
+            val = self.backend_var.get()
+            setattr(self, 'backend', val)
+            os.environ['HA_BACKEND'] = val
+            print(f"[CONFIG] Backend set to: {val}")
+        backend_combo.bind('<<ComboboxSelected>>', _on_backend_change)
+        self.backend_combo = backend_combo
+
+        # Refresh Ollama models button
+        refresh_btn = ttk.Button(controls, text="Refresh Models", command=self.refresh_ollama_models)
+        refresh_btn.pack(side=tk.LEFT, padx=5)
 
         right_frame = ttk.Frame(main_container)
         right_frame.pack(side=tk.LEFT, padx=5, fill=tk.BOTH, expand=True)
@@ -1086,14 +1175,80 @@ class DetectionGUI:
         
         return relevant_items
 
+    def handle_search_command(self, message):
+        if message.lower().startswith(("search:", "pretrazi:")):
+            query = message.split(":", 1)[1].strip()
+            try:
+                results = self.internet_search(query, max_results=1)
+                if results:
+                    first = results[0]
+                    # return body/summary if available, else url
+                    return first.get('snippet') or first.get('body') or first.get('url') or first.get('href') or 'No result'
+                return 'No results.'
+            except Exception as e:
+                return f"Search error: {e}"
+        return None
+
+    def internet_search(self, query, max_results=3):
+        """Perform a DuckDuckGo search and return a list of result dicts.
+
+        Each result dict will try to contain: 'title', 'snippet' (or 'body'), and 'url'.
+        This method prefers the `DDGS` class if available (from `ddgs` or `duckduckgo_search`),
+        otherwise falls back to a basic HTML scrape of DuckDuckGo's HTML results.
+        """
+        query = (query or '').strip()
+        if not query:
+            return []
+
+        # Primary: use DDGS if available
+        if DDGS is not None:
+            try:
+                with DDGS() as ddgs:
+                    # ddgs.text yields dicts depending on implementation
+                    results = list(ddgs.text(query, max_results=max_results))
+                    out = []
+                    for r in results:
+                        # Normalize keys
+                        title = r.get('title') or r.get('heading')
+                        body = r.get('body') or r.get('snippet') or r.get('excerpt')
+                        url = r.get('href') or r.get('url') or r.get('link')
+                        out.append({'title': title, 'snippet': body, 'url': url})
+                    return out
+            except Exception:
+                # fallthrough to fallback method
+                pass
+
+        # Fallback: simple HTML query parsing
+        try:
+            resp = requests.get('https://duckduckgo.com/html/', params={'q': query}, timeout=10)
+            html = resp.text
+            # Very small, resilient parsing: look for result links
+            items = []
+            for m in re.finditer(r'<a[^>]+class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>', html, flags=re.S):
+                url = m.group(1)
+                title_html = m.group(2)
+                # strip tags from title_html
+                title = re.sub('<[^<]+?>', '', title_html).strip()
+                snippet_match = re.search(r'<div class="result__snippet">(.*?)</div>', html[m.start():m.end()+300], flags=re.S)
+                snippet = re.sub('<[^<]+?>', '', snippet_match.group(1)).strip() if snippet_match else ''
+                items.append({'title': title, 'snippet': snippet, 'url': url})
+                if len(items) >= max_results:
+                    break
+            return items
+        except Exception:
+            return []
+
     def send_message(self):
         print("[DEBUG] send_message() called")
         message = self.message_input.get("1.0", tk.END).strip()
         if not message:
-            print("[DEBUG] Empty message, returning")
             return
-            
         self.message_input.delete("1.0", tk.END)
+        # Check for search command
+        search_result = self.handle_search_command(message)
+        if search_result:
+            self.append_to_chat(f"Internet: {search_result}")
+            return
         self.append_to_chat(f"You: {message}")
         print("[DEBUG] Message appended to chat display")
 
@@ -1180,13 +1335,21 @@ Assistant:"""
             print("[DEBUG] Prompt prepared, about to call model backend...")
             print(f"[DEBUG] Full prompt length: {len(prompt)} chars")
 
-            if getattr(self, 'backend', 'local') == 'ollama':
+            if getattr(self, 'backend', 'ollama') == 'ollama':
                 print(f"[DEBUG] Using Ollama backend with model={self.ollama_model}")
                 text = self.ollama_generate(prompt + "\nAssistant: ", model=self.ollama_model, max_tokens=400)
                 if text:
                     self.append_to_chat(f"Assistant: {text}")
                 else:
                     self.append_to_chat("Assistant: (No response generated - Ollama returned empty)")
+            elif getattr(self, 'backend', '') == 'openai':
+                print("[DEBUG] Using OpenAI backend")
+                ai_model = os.environ.get('HA_OPENAI_MODEL', 'gpt-3.5-turbo')
+                text = self.openai_generate(prompt + "\nAssistant: ", model=ai_model, max_tokens=400)
+                if text:
+                    self.append_to_chat(f"Assistant: {text}")
+                else:
+                    self.append_to_chat("Assistant: (No response generated - OpenAI returned empty or key missing)")
             else:
                 if not self.llm:
                     messagebox.showerror("Error", "LLM not initialized")

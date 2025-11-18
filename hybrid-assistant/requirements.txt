@@ -8,3 +8,4 @@ uvicorn[standard]
 requests
 numpy
 llama-cpp-python
+ddgs>=0.6

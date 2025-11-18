@@ -87,6 +87,9 @@ powershell -NoProfile -Command "& { $exe = '%PYTHON%'; $args = '-m pip install -
 <nul set /p ="Installing requirements (this can take several minutes)... "
 powershell -NoProfile -Command "& { $exe = '%PYTHON%'; $args = '-m pip install -r requirements.txt'; $log = 'install_requirements.log'; $psi = New-Object System.Diagnostics.ProcessStartInfo($exe, $args); $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.UseShellExecute = $false; $p = New-Object System.Diagnostics.Process; $p.StartInfo = $psi; $p.Start() | Out-Null; while (-not $p.HasExited) { Write-Host -NoNewline '.'; Start-Sleep -Milliseconds 300 }; $out = $p.StandardOutput.ReadToEnd() + $p.StandardError.ReadToEnd(); $out -split "`n" | Select-Object -Last 1 | Write-Host; $out | Out-File -FilePath $log -Encoding utf8; if ($p.ExitCode -ne 0) { Write-Host ' Failed'; Write-Host 'WARNING: Some dependencies may have failed to install. See ' + $log; exit 0 } else { Write-Host ' Done' } }"
 
+REM Ensure DuckDuckGo search package is installed (use renamed package `ddgs`)
+pip install ddgs
+
 REM Mark dependencies as installed
 echo Installed > "%VENV_DIR%\.installed"
 
@@ -124,14 +127,33 @@ echo 1. CPU Mode (safest, slower)
 echo 2. CUDA Mode (GPU acceleration, requires NVIDIA)
 echo 3. Hybrid Mode (auto-detect, recommended)
 echo 4. Exit
+echo 5. Set OpenAI API key (store in user env var)
 echo.
 
-set /p MODE_SELECT=Enter your choice (1-4): 
+set /p MODE_SELECT=Enter your choice (1-5): 
 if "%MODE_SELECT%"=="1" goto cpu_mode
 if "%MODE_SELECT%"=="2" goto cuda_mode
 if "%MODE_SELECT%"=="3" goto hybrid_mode
 if "%MODE_SELECT%"=="4" goto exit_script
+if "%MODE_SELECT%"=="5" goto set_openai_key
 echo Invalid selection. Defaulting to CPU mode.
+goto cpu_mode
+
+:set_openai_key
+echo.
+echo Enter your OpenAI API key. It will be stored as a USER environment variable `OPENAI_API_KEY`.
+set /p NEW_OPENAI_KEY=API key (paste then press Enter): 
+if "%NEW_OPENAI_KEY%"=="" (
+    echo No key provided. Returning to menu.
+    goto cpu_mode
+)
+echo Storing key in user environment (using setx)...
+powershell -NoProfile -Command "setx OPENAI_API_KEY '%NEW_OPENAI_KEY%'" >nul 2>&1
+if errorlevel 1 (
+    echo Failed to store key. You may set it manually with: setx OPENAI_API_KEY "<your-key>"
+) else (
+    echo Key stored successfully. You may need to reopen your terminal for it to take effect.
+)
 goto cpu_mode
 
 :cpu_mode
