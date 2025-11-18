@@ -137,7 +137,7 @@ if "%MODE_SELECT%"=="3" goto hybrid_mode
 if "%MODE_SELECT%"=="4" goto exit_script
 if "%MODE_SELECT%"=="5" goto set_openai_key
 echo Invalid selection. Defaulting to CPU mode.
-goto cpu_mode
+goto menu_start
 
 :set_openai_key
 echo.
@@ -154,7 +154,8 @@ if errorlevel 1 (
 ) else (
     echo Key stored successfully. You may need to reopen your terminal for it to take effect.
 )
-goto cpu_mode
+    REM After setting the key, return to the main mode selection menu so the user can pick CPU/CUDA/Hybrid
+    goto menu_start
 
 :cpu_mode
 echo.
