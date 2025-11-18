@@ -133,6 +133,7 @@ class DetectionGUI:
             preview_canvas.create_image(0, 0, anchor=tk.NW, image=imgtk)
             preview_canvas.image = imgtk
             if mode == 'rectangle':
+                preview_canvas.config(cursor='crosshair')
                 def on_press(event):
                     rect_start[0] = (event.x, event.y)
                 def on_drag(event):
@@ -153,11 +154,13 @@ class DetectionGUI:
                     preview_canvas.unbind('<ButtonPress-1>')
                     preview_canvas.unbind('<B1-Motion>')
                     preview_canvas.unbind('<ButtonRelease-1>')
+                    preview_canvas.config(cursor='')
                 preview_canvas.bind('<ButtonPress-1>', on_press)
                 preview_canvas.bind('<B1-Motion>', on_drag)
                 preview_canvas.bind('<ButtonRelease-1>', on_release)
             elif mode == 'polygon':
                 polygon_points.clear()
+                preview_canvas.config(cursor='crosshair')
                 def on_click(event):
                     polygon_points.append((event.x, event.y))
                     if len(polygon_points) > 1:
@@ -165,24 +168,69 @@ class DetectionGUI:
                 def on_double(event):
                     if len(polygon_points) > 2:
                         preview_canvas.create_polygon(*sum(polygon_points, ()), outline='red', fill='', width=2, tags='poly')
-                        # Optionally, crop polygon region (not implemented, placeholder)
+                        # Crop polygon region using a mask
+                        try:
+                            # Convert full preview image back to RGBA for masking
+                            full_img = img.convert('RGBA')
+                            mask = Image.new('L', full_img.size, 0)
+                            from PIL import ImageDraw
+                            ImageDraw.Draw(mask).polygon(polygon_points, outline=1, fill=255)
+                            cropped = Image.new('RGBA', full_img.size)
+                            cropped.paste(full_img, (0,0), mask=mask)
+                            # Find bounding box of polygon to crop tightly
+                            bbox = mask.getbbox()
+                            if bbox:
+                                cropped_region = cropped.crop(bbox)
+                            else:
+                                cropped_region = cropped
+                            selected_region_img[0] = cropped_region.convert('RGB')
+                            imgtk2 = ImageTk.PhotoImage(cropped_region.resize(preview_size))
+                            preview_canvas.create_image(0, 0, anchor=tk.NW, image=imgtk2)
+                            preview_canvas.image = imgtk2
+                        except Exception as e:
+                            print(f"[TEACH] Polygon crop error: {e}")
                         preview_canvas.unbind('<Button-1>')
                         preview_canvas.unbind('<Double-Button-1>')
+                        preview_canvas.config(cursor='')
                 preview_canvas.bind('<Button-1>', on_click)
                 preview_canvas.bind('<Double-Button-1>', on_double)
             elif mode == 'face':
                 gray = cv2.cvtColor(live_frame[0], cv2.COLOR_BGR2GRAY)
-                faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
+                faces = []
+                try:
+                    if self.face_cascade is not None:
+                        faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
+                except Exception as e:
+                    print(f"[TEACH] Face cascade detect error: {e}")
                 if len(faces) > 0:
                     (x, y, w, h) = faces[0]
                     face_img = live_frame[0][y:y+h, x:x+w]
                     selected_face_img[0] = face_img
-                    img2 = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
-                    img2 = Image.fromarray(img2)
-                    img2 = img2.resize(preview_size)
-                    imgtk2 = ImageTk.PhotoImage(img2)
-                    preview_canvas.create_image(0, 0, anchor=tk.NW, image=imgtk2)
-                    preview_canvas.image = imgtk2
+                    # Create circular mask for face preview
+                    try:
+                        img2 = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
+                        pil_face = Image.fromarray(img2).convert('RGBA')
+                        mw, mh = pil_face.size
+                        mask = Image.new('L', (mw, mh), 0)
+                        from PIL import ImageDraw
+                        draw = ImageDraw.Draw(mask)
+                        r = min(mw, mh) // 2
+                        cx, cy = mw//2, mh//2
+                        draw.ellipse((cx-r, cy-r, cx+r, cy+r), fill=255)
+                        res = Image.new('RGBA', pil_face.size, (255,255,255,0))
+                        res.paste(pil_face, (0,0), mask=mask)
+                        im_display = res.resize(preview_size)
+                        imgtk2 = ImageTk.PhotoImage(im_display)
+                        preview_canvas.create_image(0, 0, anchor=tk.NW, image=imgtk2)
+                        preview_canvas.image = imgtk2
+                    except Exception as e:
+                        print(f"[TEACH] Face preview error: {e}")
+                        img2 = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
+                        img2 = Image.fromarray(img2)
+                        img2 = img2.resize(preview_size)
+                        imgtk2 = ImageTk.PhotoImage(img2)
+                        preview_canvas.create_image(0, 0, anchor=tk.NW, image=imgtk2)
+                        preview_canvas.image = imgtk2
                     messagebox.showinfo("Face Captured", "Face captured and shown in preview.", parent=dialog)
                 else:
                     messagebox.showwarning("No Face Detected", "No face detected in the current frame.", parent=dialog)
@@ -232,7 +280,50 @@ class DetectionGUI:
             if not desc:
                 messagebox.showwarning("Input Required", "Please provide a description", parent=dialog)
                 return
-            # Save to knowledge base
+            # Handle visual / face teaching specially (store embeddings or face samples)
+            if context == 'visual':
+                if selected_region_img[0] is None:
+                    messagebox.showwarning("No Selection", "Please select a region (rectangle or polygon) before saving.", parent=dialog)
+                    return
+                try:
+                    # selected_region_img may be a PIL.Image (RGB/RGBA). Convert to BGR numpy array for CLIP.
+                    region_pil = selected_region_img[0]
+                    if getattr(region_pil, 'mode', None) == 'RGBA':
+                        region_pil = region_pil.convert('RGB')
+                    region_np = np.array(region_pil)
+                    # PIL gives RGB; convert to BGR expected by OpenCV codepaths
+                    region_bgr = cv2.cvtColor(region_np, cv2.COLOR_RGB2BGR)
+                    ok = self.add_clip_embedding(name, desc, region_bgr)
+                    if not ok:
+                        messagebox.showwarning("Teach Failed", "Failed to generate visual embedding.", parent=dialog)
+                        return
+                except Exception as e:
+                    print(f"[TEACH] Error saving visual sample: {e}")
+                    messagebox.showwarning("Teach Failed", f"Error saving visual sample: {e}", parent=dialog)
+                    return
+            elif context == 'face':
+                if selected_face_img[0] is None:
+                    messagebox.showwarning("No Face", "Please use Learn Face to capture a face before saving.", parent=dialog)
+                    return
+                try:
+                    face_bgr = selected_face_img[0]
+                    # Convert to grayscale and resize to a consistent size for LBPH
+                    face_gray = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2GRAY)
+                    # Optional resize to 200x200 to normalize training samples
+                    try:
+                        face_gray = cv2.resize(face_gray, (200, 200))
+                    except Exception:
+                        pass
+                    ok = self.add_face_sample(name, face_gray)
+                    if not ok:
+                        messagebox.showwarning("Teach Failed", "Failed to add face sample.", parent=dialog)
+                        return
+                except Exception as e:
+                    print(f"[TEACH] Error saving face sample: {e}")
+                    messagebox.showwarning("Teach Failed", f"Error saving face sample: {e}", parent=dialog)
+                    return
+
+            # Save to knowledge base (common metadata)
             self.knowledge_base[name] = {
                 'description': desc,
                 'examples': examples,
