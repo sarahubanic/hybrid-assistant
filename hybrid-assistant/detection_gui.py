@@ -31,14 +31,33 @@ class DetectionGUI:
         messagebox.showinfo("Send + Img", "This feature is not yet implemented.")
 
     def start_learning(self):
-        """Advanced 'Teach Me Something' dialog with preview, context, and face selector."""
+        """Teach Me dialog with live camera preview, region/face selection, and resource management."""
         import tkinter as tk
         from tkinter import simpledialog, messagebox, filedialog, ttk
+        import cv2
+        from PIL import Image, ImageTk
         dialog = tk.Toplevel(self.window)
         dialog.title("Teach Me Something")
-        dialog.geometry("420x520")
+        dialog.geometry("520x700")
         dialog.transient(self.window)
         dialog.grab_set()
+
+        # Pause main camera
+        was_camera_on = self.is_camera_on
+        if was_camera_on:
+            self.is_camera_on = False
+
+        # State
+        region_mode = tk.StringVar(value="rectangle")
+        polygon_points = []
+        rect_start = [None]
+        rect_end = [None]
+        selected_region_img = [None]
+        selected_face_img = [None]
+        preview_imgtk = [None]
+        capturing_face = [False]
+        live_frame = [None]
+        running = [True]
 
         # Name
         name_label = ttk.Label(dialog, text="Name:")
@@ -65,57 +84,131 @@ class DetectionGUI:
         context_var = tk.StringVar(value="visual")
         rb_visual = ttk.Radiobutton(dialog, text="Visual", variable=context_var, value="visual")
         rb_face = ttk.Radiobutton(dialog, text="Face Recognition", variable=context_var, value="face")
+        rb_general = ttk.Radiobutton(dialog, text="General Knowledge", variable=context_var, value="general")
         rb_visual.pack(anchor=tk.W, padx=20)
         rb_face.pack(anchor=tk.W, padx=20)
+        rb_general.pack(anchor=tk.W, padx=20)
 
         # Preview frame
-        preview_frame = ttk.LabelFrame(dialog, text="Pregled isečka", padding="5")
+        preview_frame = ttk.LabelFrame(dialog, text="Camera Preview", padding="5")
         preview_frame.pack(fill=tk.X, padx=10, pady=(10, 10))
-        preview_size = (200, 200)
+        preview_size = (320, 240)
         preview_canvas = tk.Canvas(preview_frame, width=preview_size[0], height=preview_size[1], bg='gray20')
         preview_canvas.pack(anchor=tk.CENTER)
 
-        # Face selector
-        face_select_var = tk.StringVar(value="")
-        face_select_label = ttk.Label(preview_frame, text="Select face to save:")
-        face_select_combo = ttk.Combobox(preview_frame, textvariable=face_select_var, values=(list(self.face_labels.keys()) if hasattr(self, 'face_labels') else []), state='disabled', width=24)
-        face_select_label.pack(pady=(6,0))
-        face_select_combo.pack()
+        # --- Live camera preview update ---
+        def update_preview():
+            if not running[0]:
+                return
+            frame = self.last_frame.copy() if self.last_frame is not None else None
+            if frame is not None:
+                live_frame[0] = frame
+                img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                img = Image.fromarray(img)
+                img = img.resize(preview_size)
+                imgtk = ImageTk.PhotoImage(img)
+                preview_canvas.create_image(0, 0, anchor=tk.NW, image=imgtk)
+                preview_canvas.image = imgtk
+            dialog.after(100, update_preview)
+        update_preview()
 
+        # --- Region selection logic ---
+        def add_rectangle():
+            if live_frame[0] is not None:
+                # Let user draw rectangle on preview
+                def on_press(event):
+                    rect_start[0] = (event.x, event.y)
+                def on_drag(event):
+                    if rect_start[0]:
+                        preview_canvas.delete('rect')
+                        preview_canvas.create_rectangle(rect_start[0][0], rect_start[0][1], event.x, event.y, outline='red', width=2, tags='rect')
+                def on_release(event):
+                    rect_end[0] = (event.x, event.y)
+                    x0, y0 = rect_start[0]
+                    x1, y1 = rect_end[0]
+                    x0, x1 = sorted([x0, x1])
+                    y0, y1 = sorted([y0, y1])
+                    img = cv2.cvtColor(live_frame[0], cv2.COLOR_BGR2RGB)
+                    img = Image.fromarray(img)
+                    img = img.resize(preview_size)
+                    region = img.crop((x0, y0, x1, y1))
+                    selected_region_img[0] = region
+                    imgtk = ImageTk.PhotoImage(region)
+                    preview_canvas.create_image(0, 0, anchor=tk.NW, image=imgtk)
+                    preview_canvas.image = imgtk
+                    preview_canvas.unbind('<ButtonPress-1>')
+                    preview_canvas.unbind('<B1-Motion>')
+                    preview_canvas.unbind('<ButtonRelease-1>')
+                preview_canvas.bind('<ButtonPress-1>', on_press)
+                preview_canvas.bind('<B1-Motion>', on_drag)
+                preview_canvas.bind('<ButtonRelease-1>', on_release)
+        def add_polygon():
+            if live_frame[0] is not None:
+                polygon_points.clear()
+                def on_click(event):
+                    polygon_points.append((event.x, event.y))
+                    if len(polygon_points) > 1:
+                        preview_canvas.create_line(*sum(polygon_points, ()), fill='red', width=2, tags='poly')
+                def on_double(event):
+                    if len(polygon_points) > 2:
+                        preview_canvas.create_polygon(*sum(polygon_points, ()), outline='red', fill='', width=2, tags='poly')
+                        # Crop polygon region (not implemented, placeholder)
+                        preview_canvas.unbind('<Button-1>')
+                        preview_canvas.unbind('<Double-Button-1>')
+                preview_canvas.bind('<Button-1>', on_click)
+                preview_canvas.bind('<Double-Button-1>', on_double)
+        def learn_face():
+            if live_frame[0] is not None:
+                gray = cv2.cvtColor(live_frame[0], cv2.COLOR_BGR2GRAY)
+                faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
+                if len(faces) > 0:
+                    (x, y, w, h) = faces[0]
+                    face_img = live_frame[0][y:y+h, x:x+w]
+                    selected_face_img[0] = face_img
+                    img = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
+                    img = Image.fromarray(img)
+                    img = img.resize(preview_size)
+                    imgtk = ImageTk.PhotoImage(img)
+                    preview_canvas.create_image(0, 0, anchor=tk.NW, image=imgtk)
+                    preview_canvas.image = imgtk
+                    messagebox.showinfo("Face Captured", "Face captured and shown in preview.", parent=dialog)
+                else:
+                    messagebox.showwarning("No Face Detected", "No face detected in the current frame.", parent=dialog)
+            else:
+                messagebox.showwarning("No Frame", "No camera frame available.", parent=dialog)
+
+        # Buttons
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(pady=(0,5))
+        rect_btn = ttk.Button(btn_frame, text="Add Rectangle", command=add_rectangle)
+        poly_btn = ttk.Button(btn_frame, text="Add Polygon", command=add_polygon)
+        face_btn = ttk.Button(btn_frame, text="Learn Face", command=learn_face)
+        save_btn = ttk.Button(btn_frame, text="Save", command=lambda: save())
+        rect_btn.pack(side=tk.LEFT, padx=5)
+        poly_btn.pack(side=tk.LEFT, padx=5)
+        face_btn.pack(side=tk.LEFT, padx=5)
+        save_btn.pack(side=tk.LEFT, padx=5)
+
+        # Enable/disable buttons based on context
         def _on_context_change(*args):
             ctx = context_var.get()
-            try:
-                if ctx == 'face':
-                    preview_frame.config(text='Clip to save')
-                    faces = list(self.face_labels.keys()) if hasattr(self, 'face_labels') and self.face_labels else []
-                    face_select_combo['values'] = faces
-                    if faces:
-                        face_select_combo.config(state='readonly')
-                        if not face_select_var.get():
-                            face_select_var.set(faces[0])
-                    else:
-                        face_select_combo.config(state='disabled')
-                        face_select_var.set('')
-                else:
-                    preview_frame.config(text='Pregled isečka')
-                    face_select_combo.config(state='disabled')
-                    face_select_var.set('')
-            except Exception:
-                pass
+            if ctx == 'face':
+                rect_btn.config(state='disabled')
+                poly_btn.config(state='disabled')
+                face_btn.config(state='normal')
+            elif ctx == 'visual':
+                rect_btn.config(state='normal')
+                poly_btn.config(state='normal')
+                face_btn.config(state='disabled')
+            else:
+                rect_btn.config(state='disabled')
+                poly_btn.config(state='disabled')
+                face_btn.config(state='disabled')
         try:
             context_var.trace_add('write', _on_context_change)
         except Exception:
             context_var.trace('w', _on_context_change)
-
-        # Image selection
-        img_path_var = tk.StringVar()
-        def select_image():
-            path = filedialog.askopenfilename(title="Select image", filetypes=[("Image Files", "*.png;*.jpg;*.jpeg")])
-            if path:
-                img_path_var.set(path)
-                # Optionally, show preview (not implemented here)
-        img_btn = ttk.Button(dialog, text="Select Image", command=select_image)
-        img_btn.pack(pady=(5,0))
+        _on_context_change()
 
         # Save logic
         def save():
@@ -123,13 +216,6 @@ class DetectionGUI:
             desc = desc_text.get("1.0", tk.END).strip()
             examples = [ex.strip() for ex in examples_text.get("1.0", tk.END).splitlines() if ex.strip()]
             context = context_var.get()
-            try:
-                if context == 'face' and face_select_var.get():
-                    sel = face_select_var.get().strip()
-                    if sel:
-                        name = sel
-            except Exception:
-                pass
             if not name:
                 messagebox.showwarning("Input Required", "Please provide a name", parent=dialog)
                 return
@@ -145,10 +231,13 @@ class DetectionGUI:
             }
             self.save_knowledge_base()
             messagebox.showinfo("Teach Me Something", f"Successfully added '{name}' to the knowledge base.", parent=dialog)
+            running[0] = False
             dialog.destroy()
-        save_btn = ttk.Button(dialog, text="Save", command=save)
-        save_btn.pack(pady=10)
+
         dialog.wait_window()
+        # Resume main camera
+        if was_camera_on:
+            self.is_camera_on = True
 
     def append_to_chat(self, message):
         """Append a message to the chat display and history"""
@@ -1499,6 +1588,7 @@ Assistant:"""
                 corrected_label = self.apply_correction(label)
                 corrected_detected.append(corrected_label)
             detected = corrected_detected
+
             if not self.dialog_update_running:
                 # Track entry/exit for recognized people
                 prev_people = set([d for d in self.current_detections if d in self.knowledge_base and self.knowledge_base[d].get('context') == 'face'])
