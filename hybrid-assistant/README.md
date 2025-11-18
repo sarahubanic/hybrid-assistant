@@ -1,3 +1,6 @@
+## Note on DuckDuckGo Search Library
+
+As of November 2025, the `ddgs` package (the successor to `duckduckgo-search`) could not be installed or imported in this environment. Therefore, the project continues to use `duckduckgo-search` for internet search features. If you see a deprecation warning, it is safe to ignore for now. Future updates may switch to `ddgs` if compatibility improves.
 # Hybrid Assistant
 
 A local, privacy-focused **face recognition and chatbot** application that combines camera-based visual detection with a local LLM backend. Teach the assistant to recognize faces and objects through the GUI or chat, get intelligent scene descriptions, and have conversations—all running locally and offline.

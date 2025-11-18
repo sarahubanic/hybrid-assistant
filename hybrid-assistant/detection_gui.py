@@ -1,3 +1,4 @@
+from duckduckgo_search import DDGS
 import cv2
 import re
 import numpy as np
@@ -26,12 +27,21 @@ except Exception:
     Llama = None
 
 class DetectionGUI:
+    def internet_search(self, query, max_results=3):
+        try:
+            with DDGS() as ddgs:
+                results = ddgs.text(query, max_results=max_results)
+                return [r['body'] for r in results]
+        except Exception as e:
+            return [f"Greška u pretrazi: {e}"]
     def send_with_frame(self):
         """Placeholder for the 'Send + Img' button. Implement sending message with image here."""
         messagebox.showinfo("Send + Img", "This feature is not yet implemented.")
+
     def start_learning(self):
         """Placeholder for the 'Teach Me Something' button. Implement learning logic here."""
         messagebox.showinfo("Teach Me Something", "Learning mode is not yet implemented.")
+
     def append_to_chat(self, message):
         """Append a message to the chat display and history"""
         if hasattr(self, 'chat_display'):
@@ -39,7 +49,7 @@ class DetectionGUI:
             self.chat_display.insert(tk.END, message + "\n\n")
             self.chat_display.see(tk.END)
             self.chat_display.configure(state=tk.DISABLED)
-        def __init__(self, window, window_title):
+        if hasattr(self, 'chat_history'):
             self.chat_history.append(message)
             self.save_chat_history()
             
@@ -888,6 +898,12 @@ class DetectionGUI:
         self.append_to_chat(f"You: {message}")
         print("[DEBUG] Message appended to chat display")
 
+        # DuckDuckGo search for 'search:' or 'pretrazi:'
+        if message.lower().startswith('search:') or message.lower().startswith('pretrazi:'):
+            query = message.split(':', 1)[1].strip()
+            results = self.internet_search(query)
+            self.append_to_chat("Internet rezultati:\n" + "\n".join(results))
+            return
         try:
             handled = self.handle_correction_command(message)
             if handled:
@@ -1281,39 +1297,40 @@ Assistant:"""
                     conf = float(box.conf[0])
                     cls = int(box.cls[0])
                     name = r.names[cls]
-                    # --- Updated threshold and color logic ---
-                    if conf > 0.7:
-                        try:
-                            crop = frame_copy[y1:y2, x1:x2]
-                            final_name = name
-                            final_score = conf
-                            if crop is not None and crop.size > 0:
-                                match_name, match_score = self.match_visual(crop, return_score=True)
-                                if match_name:
-                                    final_name = match_name
-                                    final_score = match_score
-                            if final_name not in detected:
-                                detected.append(final_name)
-                            # Color: green >0.8, yellow 0.7-0.8, red otherwise
-                            if final_score > 0.8:
-                                box_color = (0, 255, 0)
-                                text_color = (0, 255, 0)
-                                line_width = 3
-                                text_size = 0.8
-                            elif final_score > 0.7:
-                                box_color = (0, 255, 255)
-                                text_color = (0, 255, 255)
-                                line_width = 2
-                                text_size = 0.7
-                            else:
-                                box_color = (0, 0, 255)
-                                text_color = (0, 0, 255)
-                                line_width = 2
-                                text_size = 0.6
-                            cv2.rectangle(frame_copy, (x1, y1), (x2, y2), box_color, line_width)
-                            cv2.putText(frame_copy, f"{final_name} {final_score:.2f}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, text_size, text_color, 2)
-                        except Exception as e:
-                            print(f"[ERROR] Detection priority check failed: {e}")
+                    # Strict threshold: only show if conf > 0.7
+                    if conf <= 0.7:
+                        continue
+                    try:
+                        crop = frame_copy[y1:y2, x1:x2]
+                        final_name = name
+                        final_score = conf
+                        if crop is not None and crop.size > 0:
+                            match_name, match_score = self.match_visual(crop, return_score=True)
+                            if match_name:
+                                final_name = match_name
+                                final_score = match_score
+                        if final_name not in detected:
+                            detected.append(final_name)
+                        # Color: green >0.8, yellow 0.7-0.8, red otherwise
+                        if final_score > 0.8:
+                            box_color = (0, 255, 0)
+                            text_color = (0, 255, 0)
+                            line_width = 3
+                            text_size = 0.8
+                        elif final_score > 0.7:
+                            box_color = (0, 255, 255)
+                            text_color = (0, 255, 255)
+                            line_width = 2
+                            text_size = 0.7
+                        else:
+                            box_color = (0, 0, 255)
+                            text_color = (0, 0, 255)
+                            line_width = 2
+                            text_size = 0.6
+                        cv2.rectangle(frame_copy, (x1, y1), (x2, y2), box_color, line_width)
+                        cv2.putText(frame_copy, f"{final_name} {final_score:.2f}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, text_size, text_color, 2)
+                    except Exception as e:
+                        print(f"[ERROR] Detection priority check failed: {e}")
             person_names = []
             try:
                 if hasattr(self, 'face_cascade') and self.face_cascade is not None:
@@ -1375,61 +1392,68 @@ Assistant:"""
                 corrected_detected.append(corrected_label)
             detected = corrected_detected
             if not self.dialog_update_running:
-                if set(detected) != set(self.current_detections):
-                    self.current_detections = detected
-                    print(f"[DETECTION] Updated detections: {detected}")
-                    if detected:
-                        self.status.configure(text=f"Detected: {', '.join(detected)}")
-                        recognized_people = [d for d in detected if d in self.knowledge_base and self.knowledge_base[d].get('context') == 'face']
-                        objects = [d for d in detected if d not in recognized_people]
-                        unknown_people = [d for d in detected if d == "Unknown Person"]
-                        description_parts = []
-                        if recognized_people:
-                            description_parts.append(f"I see {', '.join(recognized_people)}!")
-                            for person in recognized_people:
-                                if person in self.knowledge_base:
-                                    person_info = self.knowledge_base[person].get('description', '')
-                                    if person_info:
-                                        description_parts.append(f"{person}: {person_info}")
-                        if unknown_people:
-                            description_parts.append("I also detect an unknown person.")
-                        if objects:
-                            description_parts.append(f"I also see: {', '.join(objects)}.")
-                        description_prompt = " ".join(description_parts) if description_parts else f"Objects detected: {', '.join(detected)}."
-                        print(f"[DETECTION] Generating response for: {description_prompt}")
-                        if getattr(self, 'auto_describe', False):
-                            try:
-                                permanent_rules = self.get_permanent_knowledge()
-                                context_parts = []
-                                if permanent_rules:
-                                    context_parts.append("Permanent Instructions (Must Follow):")
-                                    context_parts.extend([f"- {rule}" for rule in permanent_rules])
-                                    context_parts.append("\n")
-                                context_parts.append(f"Scene context: {description_prompt}")
-                                context_parts.append("Instruction: Describe this scene in a friendly way.")
-                                model_prompt = "\n".join(context_parts)
-                                if getattr(self, 'backend', 'local') == 'ollama':
-                                    response_text = self.ollama_generate(
-                                        model_prompt,
-                                        model=self.ollama_model,
-                                        max_tokens=100
-                                    )
-                                else:
-                                    response = self.llm(
-                                        model_prompt,
-                                        max_tokens=100,
-                                        stop=["\nUser:", "User:", "<end_of_turn>"]
-                                    )
-                                    response_text = response['choices'][0]['text'].strip()
-                                if response_text and not response_text.startswith("[OLLAMA"):
-                                    self.append_to_chat(f"Assistant: {response_text}")
-                                    print(f"[DETECTION] Response generated: {response_text[:80]}...")
-                            except Exception as e:
-                                print(f"[DETECTION] Error generating description: {e}")
-                        else:
-                            print("[DETECTION] auto_describe disabled; skipping LLM call. Press 'Describe Scene' to generate description.")
+                # Track entry/exit for recognized people
+                prev_people = set([d for d in self.current_detections if d in self.knowledge_base and self.knowledge_base[d].get('context') == 'face'])
+                new_people = set([d for d in detected if d in self.knowledge_base and self.knowledge_base[d].get('context') == 'face'])
+                # Greet only on entry
+                for person in new_people - prev_people:
+                    if person not in self.greeted_persons:
+                        self.greeted_persons.add(person)
+                        self.append_to_chat(f"Assistant: Hello, {person}! Welcome back.")
+                # Register exit
+                for person in prev_people - new_people:
+                    if person in self.greeted_persons:
+                        self.greeted_persons.remove(person)
+                        self.append_to_chat(f"Assistant: {person} has left the camera view.")
+                self.current_detections = detected
+                print(f"[DETECTION] Updated detections: {detected}")
+                if detected:
+                    self.status.configure(text=f"Detected: {', '.join(detected)}")
+                    recognized_people = [d for d in detected if d in self.knowledge_base and self.knowledge_base[d].get('context') == 'face']
+                    objects = [d for d in detected if d not in recognized_people]
+                    unknown_people = [d for d in detected if d == "Unknown Person"]
+                    description_parts = []
+                    if recognized_people:
+                        description_parts.append(f"I see {', '.join(recognized_people)}!")
+                    if unknown_people:
+                        description_parts.append("I also detect an unknown person.")
+                    if objects:
+                        description_parts.append(f"I also see: {', '.join(objects)}.")
+                    description_prompt = " ".join(description_parts) if description_parts else f"Objects detected: {', '.join(detected)}."
+                    print(f"[DETECTION] Generating response for: {description_prompt}")
+                    if getattr(self, 'auto_describe', False):
+                        try:
+                            permanent_rules = self.get_permanent_knowledge()
+                            context_parts = []
+                            if permanent_rules:
+                                context_parts.append("Permanent Instructions (Must Follow):")
+                                context_parts.extend([f"- {rule}" for rule in permanent_rules])
+                                context_parts.append("\n")
+                            context_parts.append(f"Scene context: {description_prompt}")
+                            context_parts.append("Instruction: Describe this scene in a friendly way.")
+                            model_prompt = "\n".join(context_parts)
+                            if getattr(self, 'backend', 'local') == 'ollama':
+                                response_text = self.ollama_generate(
+                                    model_prompt,
+                                    model=self.ollama_model,
+                                    max_tokens=100
+                                )
+                            else:
+                                response = self.llm(
+                                    model_prompt,
+                                    max_tokens=100,
+                                    stop=["\nUser:", "User:", "<end_of_turn>"]
+                                )
+                                response_text = response['choices'][0]['text'].strip()
+                            if response_text and not response_text.startswith("[OLLAMA"):
+                                self.append_to_chat(f"Assistant: {response_text}")
+                                print(f"[DETECTION] Response generated: {response_text[:80]}...")
+                        except Exception as e:
+                            print(f"[DETECTION] Error generating description: {e}")
                     else:
-                        self.status.configure(text="No objects detected")
+                        print("[DETECTION] auto_describe disabled; skipping LLM call. Press 'Describe Scene' to generate description.")
+                else:
+                    self.status.configure(text="No objects detected")
         return frame_copy
 
 
