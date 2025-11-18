@@ -148,6 +148,11 @@ class DetectionGUI:
                     y0, y1 = sorted([y0, y1])
                     region = img.crop((x0, y0, x1, y1))
                     selected_region_img[0] = region
+                    try:
+                        # Also show the clipped region in main GUI preview
+                        self.update_taught_preview(region)
+                    except Exception:
+                        pass
                     imgtk2 = ImageTk.PhotoImage(region)
                     preview_canvas.create_image(0, 0, anchor=tk.NW, image=imgtk2)
                     preview_canvas.image = imgtk2
@@ -184,6 +189,10 @@ class DetectionGUI:
                             else:
                                 cropped_region = cropped
                             selected_region_img[0] = cropped_region.convert('RGB')
+                            try:
+                                self.update_taught_preview(selected_region_img[0])
+                            except Exception:
+                                pass
                             imgtk2 = ImageTk.PhotoImage(cropped_region.resize(preview_size))
                             preview_canvas.create_image(0, 0, anchor=tk.NW, image=imgtk2)
                             preview_canvas.image = imgtk2
@@ -223,6 +232,12 @@ class DetectionGUI:
                         imgtk2 = ImageTk.PhotoImage(im_display)
                         preview_canvas.create_image(0, 0, anchor=tk.NW, image=imgtk2)
                         preview_canvas.image = imgtk2
+                        try:
+                            # also update main GUI taught preview with circular masked face (RGB)
+                            face_rgb = pil_face.convert('RGB')
+                            self.update_taught_preview(face_rgb)
+                        except Exception:
+                            pass
                     except Exception as e:
                         print(f"[TEACH] Face preview error: {e}")
                         img2 = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
@@ -972,6 +987,30 @@ class DetectionGUI:
         except Exception as e:
             print(f"[OLLAMA] Warning: Could not query models: {e}")
 
+    def update_taught_preview(self, pil_image):
+        """Update the main GUI 'Selected Preview' canvas with a PIL Image (RGB/RGBA).
+
+        The image will be resized to `self.taught_preview_size` and displayed.
+        """
+        try:
+            if pil_image is None:
+                # clear canvas
+                if hasattr(self, 'taught_preview_canvas') and self.taught_preview_canvas:
+                    self.taught_preview_canvas.delete('all')
+                return
+            img = pil_image
+            if getattr(img, 'mode', None) == 'RGBA':
+                img = img.convert('RGB')
+            img = img.resize(self.taught_preview_size)
+            imgtk = PIL.ImageTk.PhotoImage(img)
+            # store ref to avoid GC
+            self.taught_preview_photo = imgtk
+            if hasattr(self, 'taught_preview_canvas') and self.taught_preview_canvas:
+                self.taught_preview_canvas.delete('all')
+                self.taught_preview_canvas.create_image(0, 0, anchor=tk.NW, image=imgtk)
+        except Exception as e:
+            print(f"[PREVIEW] Error updating taught preview: {e}")
+
     def openai_generate(self, prompt, model='gpt-3.5-turbo', max_tokens=400):
         """Generate text using OpenAI Chat Completions API via requests. Returns text or None."""
         key = os.environ.get('OPENAI_API_KEY')
@@ -1229,6 +1268,14 @@ class DetectionGUI:
         
         send_btn = ttk.Button(input_frame, text="Send", command=self.send_message)
         send_btn.pack(side=tk.RIGHT)
+
+        # --- Selected preview area: shows clipped crop from Teach dialog ---
+        preview_frame_main = ttk.LabelFrame(right_frame, text="Selected Preview", padding=5)
+        preview_frame_main.pack(fill=tk.NONE, pady=5)
+        self.taught_preview_size = (320, 240)
+        self.taught_preview_canvas = tk.Canvas(preview_frame_main, width=self.taught_preview_size[0], height=self.taught_preview_size[1], bg='gray20')
+        self.taught_preview_canvas.pack()
+        self.taught_preview_photo = None
         send_img_btn = ttk.Button(input_frame, text="Send + Img", command=self.send_with_frame)
         send_img_btn.pack(side=tk.RIGHT, padx=(0,5))
         
