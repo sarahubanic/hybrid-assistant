@@ -57,9 +57,18 @@ echo Running pre-flight checks...
 %PYTHON% startup_check.py
 if errorlevel 1 (
     echo.
-    echo Pre-flight checks failed. Fix issues and try again.
-    pause
-    exit /b 1
+    echo Pre-flight checks failed. Checking network connectivity...
+    REM Quick connectivity check: ping a reliable DNS server
+    ping -n 1 8.8.8.8 >nul 2>&1
+    if errorlevel 1 (
+        echo No internet detected -- continuing in offline mode.
+        set TRANSFORMERS_OFFLINE=1
+        REM Continue startup despite pre-flight failure when offline
+    ) else (
+        echo Internet detected. Please fix pre-flight issues and try again.
+        pause
+        exit /b 1
+    )
 )
 
 REM Show mode selection menu

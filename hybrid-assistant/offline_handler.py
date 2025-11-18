@@ -20,12 +20,30 @@ class OfflineManager:
         
     def setup_offline_environment(self):
         """Configure environment for offline use"""
-        os.environ['TRANSFORMERS_OFFLINE'] = '0'
+        # Configure cache/home locations
         os.environ['HF_HOME'] = str(self.cache_dir / 'huggingface')
         os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-        
+
         # Create subdirectories
         os.makedirs(os.environ['HF_HOME'], exist_ok=True)
+
+        # Detect internet connectivity and force TRANSFORMERS_OFFLINE when offline
+        try:
+            online = self.check_internet()
+        except Exception:
+            online = False
+
+        if online:
+            # Respect any existing setting, default to '0' (online)
+            os.environ['TRANSFORMERS_OFFLINE'] = os.environ.get('TRANSFORMERS_OFFLINE', '0')
+        else:
+            os.environ['TRANSFORMERS_OFFLINE'] = '1'
+            print('Offline mode detected: forcing TRANSFORMERS_OFFLINE=1')
+            # Persist the offline status for diagnostics
+            try:
+                self.log_status({'offline': True})
+            except Exception:
+                pass
     
     def check_internet(self) -> bool:
         """Check if internet is available"""
