@@ -44,6 +44,7 @@ class DetectionGUI:
             self.save_chat_history()
             
     def __init__(self, window, window_title):
+        self.is_camera_on = False  # Ensure this is always set first
         self.window = window
         self.window.title(window_title)
         
