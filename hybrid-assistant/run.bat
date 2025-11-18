@@ -1,3 +1,5 @@
+REM Ensure DuckDuckGo search package is installed
+pip install duckduckgo-search
 @echo off
 setlocal enabledelayedexpansion
 

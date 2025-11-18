@@ -1,3 +1,4 @@
+duckduckgo-search
 pillow
 opencv-contrib-python
 ultralytics
