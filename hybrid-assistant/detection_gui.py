@@ -1773,10 +1773,48 @@ Assistant:"""
 
             preview_frame = ttk.LabelFrame(right_column, text="Pregled isečka", padding="5")
             preview_frame.pack(fill=tk.X, pady=(0, 10))
-            
-            preview_size = (200, 200) 
+
+            preview_size = (200, 200)
             self.dialog_preview_canvas = tk.Canvas(preview_frame, width=preview_size[0], height=preview_size[1], bg='gray20')
             self.dialog_preview_canvas.pack(anchor=tk.CENTER)
+
+            # Face selector (appears when 'Face Recognition' context is selected)
+            face_select_var = tk.StringVar(value="")
+            face_select_label = ttk.Label(preview_frame, text="Select face to save:")
+            face_select_combo = ttk.Combobox(preview_frame, textvariable=face_select_var, values=(list(self.face_labels.keys()) if hasattr(self, 'face_labels') else []), state='disabled', width=24)
+            face_select_label.pack(pady=(6,0))
+            face_select_combo.pack()
+
+            # Update preview frame title and face selector visibility when context changes
+            def _on_context_change(*args):
+                ctx = context_var.get()
+                try:
+                    if ctx == 'face':
+                        preview_frame.config(text='Clip to save')
+                        # Populate face list if available
+                        faces = list(self.face_labels.keys()) if hasattr(self, 'face_labels') and self.face_labels else []
+                        face_select_combo['values'] = faces
+                        if faces:
+                            face_select_combo.config(state='readonly')
+                            if not face_select_var.get():
+                                face_select_var.set(faces[0])
+                        else:
+                            face_select_combo.config(state='disabled')
+                            face_select_var.set('')
+                    else:
+                        # Restore default label for other contexts
+                        preview_frame.config(text='Pregled isečka')
+                        face_select_combo.config(state='disabled')
+                        face_select_var.set('')
+                except Exception:
+                    pass
+
+            # Trace changes to context variable
+            try:
+                context_var.trace_add('write', _on_context_change)
+            except Exception:
+                # Fallback for older tkinter: trace
+                context_var.trace('w', _on_context_change)
             
         else:
             rb_visual.config(state=tk.DISABLED)
@@ -1794,6 +1832,15 @@ Assistant:"""
             desc = desc_text.get("1.0", tk.END).strip()
             examples = [ex.strip() for ex in examples_text.get("1.0", tk.END).splitlines() if ex.strip()]
             context = context_var.get()
+
+            # If Face Recognition is selected and a face is chosen from selector, use that as the name
+            try:
+                if context == 'face' and face_select_var.get():
+                    sel = face_select_var.get().strip()
+                    if sel:
+                        name = sel
+            except Exception:
+                pass
             
             if not name:
                 messagebox.showwarning("Input Required", "Please provide a name", parent=dialog)
