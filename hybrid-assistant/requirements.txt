@@ -9,3 +9,4 @@ accelerate
 uvicorn[standard]
 requests
 numpy
+llama-cpp-python

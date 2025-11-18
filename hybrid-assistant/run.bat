@@ -9,6 +9,8 @@ REM Ensure DuckDuckGo search package is installed
 pip install duckduckgo-search
 REM Ensure DuckDuckGo search package is installed
 pip install duckduckgo-search
+REM Ensure llama-cpp-python is installed
+pip install llama-cpp-python
 @echo off
 setlocal enabledelayedexpansion
 
