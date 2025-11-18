@@ -61,6 +61,7 @@ echo.
 echo Installing dependencies...
 call "%VENV_DIR%\Scripts\activate.bat"
 
+REM Check if requirements are already installed
 if exist "%VENV_DIR%\.installed" (
     if "%FORCE_INSTALL%"=="1" (
         echo Reinstall forced by --reinstall flag; running install steps...
@@ -70,12 +71,15 @@ if exist "%VENV_DIR%\.installed" (
     )
 )
 
-REM Use PowerShell to run pip commands with a simple spinner and capture output to logs
+REM Use PowerShell to run pip commands with a progress bar and capture output to logs
 <nul set /p ="Upgrading pip... "
-powershell -NoProfile -Command "& { $exe = '%PYTHON%'; $args = '-m pip install --upgrade pip'; $log = 'pip_upgrade.log'; $psi = New-Object System.Diagnostics.ProcessStartInfo($exe, $args); $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.UseShellExecute = $false; $p = New-Object System.Diagnostics.Process; $p.StartInfo = $psi; $p.Start() | Out-Null; while (-not $p.HasExited) { Write-Host -NoNewline '.'; Start-Sleep -Milliseconds 300 }; $out = $p.StandardOutput.ReadToEnd() + $p.StandardError.ReadToEnd(); $out | Out-File -FilePath $log -Encoding utf8; if ($p.ExitCode -ne 0) { Write-Host ' Failed'; exit $p.ExitCode } else { Write-Host ' Done' } }"
+powershell -NoProfile -Command "& { $exe = '%PYTHON%'; $args = '-m pip install --upgrade pip'; $log = 'pip_upgrade.log'; $psi = New-Object System.Diagnostics.ProcessStartInfo($exe, $args); $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.UseShellExecute = $false; $p = New-Object System.Diagnostics.Process; $p.StartInfo = $psi; $p.Start() | Out-Null; while (-not $p.HasExited) { Write-Host -NoNewline '.'; Start-Sleep -Milliseconds 300 }; $out = $p.StandardOutput.ReadToEnd() + $p.StandardError.ReadToEnd(); $out -split "`n" | Select-Object -Last 1 | Write-Host; $out | Out-File -FilePath $log -Encoding utf8; if ($p.ExitCode -ne 0) { Write-Host ' Failed'; exit $p.ExitCode } else { Write-Host ' Done' } }"
 
 <nul set /p ="Installing requirements (this can take several minutes)... "
-powershell -NoProfile -Command "& { $exe = '%PYTHON%'; $args = '-m pip install -r requirements.txt'; $log = 'install_requirements.log'; $psi = New-Object System.Diagnostics.ProcessStartInfo($exe, $args); $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.UseShellExecute = $false; $p = New-Object System.Diagnostics.Process; $p.StartInfo = $psi; $p.Start() | Out-Null; while (-not $p.HasExited) { Write-Host -NoNewline '.'; Start-Sleep -Milliseconds 300 }; $out = $p.StandardOutput.ReadToEnd() + $p.StandardError.ReadToEnd(); $out | Out-File -FilePath $log -Encoding utf8; if ($p.ExitCode -ne 0) { Write-Host ' Failed'; Write-Host 'WARNING: Some dependencies may have failed to install. See ' + $log; exit 0 } else { Write-Host ' Done' } }"
+powershell -NoProfile -Command "& { $exe = '%PYTHON%'; $args = '-m pip install -r requirements.txt'; $log = 'install_requirements.log'; $psi = New-Object System.Diagnostics.ProcessStartInfo($exe, $args); $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.UseShellExecute = $false; $p = New-Object System.Diagnostics.Process; $p.StartInfo = $psi; $p.Start() | Out-Null; while (-not $p.HasExited) { Write-Host -NoNewline '.'; Start-Sleep -Milliseconds 300 }; $out = $p.StandardOutput.ReadToEnd() + $p.StandardError.ReadToEnd(); $out -split "`n" | Select-Object -Last 1 | Write-Host; $out | Out-File -FilePath $log -Encoding utf8; if ($p.ExitCode -ne 0) { Write-Host ' Failed'; Write-Host 'WARNING: Some dependencies may have failed to install. See ' + $log; exit 0 } else { Write-Host ' Done' } }"
+
+REM Mark dependencies as installed
+echo Installed > "%VENV_DIR%\.installed"
 
 :after_install
 REM Mark installation done if not forced to reinstall

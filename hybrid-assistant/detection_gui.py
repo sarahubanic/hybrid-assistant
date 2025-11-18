@@ -375,7 +375,7 @@ class DetectionGUI:
             
         try:
             print("[CLIP] Učitavanje CLIP modela (clip-vit-base-patch32)...")
-            self.clip_processor = CLIPProcessor.from_pretrained('openai/clip-vit-base-patch32')
+            self.clip_processor = CLIPProcessor.from_pretrained('openai/clip-vit-base-patch32', use_fast=True)
             self.clip_model = CLIPModel.from_pretrained('openai/clip-vit-base-patch32')
             if torch is not None:
                 self.clip_model = self.clip_model.to('cpu') # Koristi CPU za sada
@@ -1614,6 +1614,7 @@ Assistant:"""
             rect = cv2.boundingRect(frame_points_np)
             x, y, w, h = rect
             final_crop = result_crop[y:y+h, x:x+w]
+
         
         # --- HIBRIDNI MOD: Sačuvaj isečak privremeno, ne pitaj za ime ---
         self._update_preview_canvas(final_crop)
