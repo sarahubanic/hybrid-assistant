@@ -26,6 +26,12 @@ except Exception:
     Llama = None
 
 class DetectionGUI:
+    def send_with_frame(self):
+        """Placeholder for the 'Send + Img' button. Implement sending message with image here."""
+        messagebox.showinfo("Send + Img", "This feature is not yet implemented.")
+    def start_learning(self):
+        """Placeholder for the 'Teach Me Something' button. Implement learning logic here."""
+        messagebox.showinfo("Teach Me Something", "Learning mode is not yet implemented.")
     def append_to_chat(self, message):
         """Append a message to the chat display and history"""
         if hasattr(self, 'chat_display'):
