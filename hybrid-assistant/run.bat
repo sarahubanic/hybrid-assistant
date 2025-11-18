@@ -30,12 +30,15 @@ set PIP=%VENV_DIR%\Scripts\pip.exe
 
 REM Create virtual environment if it doesn't exist
 if not exist "%VENV_DIR%" (
-    echo Creating virtual environment...
-    python -m venv "%VENV_DIR%"
+    <nul set /p ="Creating virtual environment... "
+    python -m venv "%VENV_DIR%" >nul 2>&1
     if errorlevel 1 (
+        echo Failed
         echo ERROR: Failed to create virtual environment
         pause
         exit /b 1
+    ) else (
+        echo Done
     )
 )
 
@@ -43,12 +46,23 @@ REM Activate venv and install/upgrade requirements
 echo.
 echo Installing dependencies...
 call "%VENV_DIR%\Scripts\activate.bat"
-%PIP% install --upgrade pip >nul 2>&1
-%PIP% install -r requirements.txt >nul 2>&1
-
+<nul set /p ="Upgrading pip... "
+%PIP% install --upgrade pip >pip_upgrade.log 2>&1
 if errorlevel 1 (
-    echo WARNING: Some dependencies may have failed to install
+    echo Failed
+    echo WARNING: pip upgrade failed. See pip_upgrade.log for details
+) else (
+    echo Done
+)
+
+<nul set /p ="Installing requirements (this can take several minutes)... "
+%PIP% install -r requirements.txt >install_requirements.log 2>&1
+if errorlevel 1 (
+    echo Failed
+    echo WARNING: Some dependencies may have failed to install. See install_requirements.log
     echo Continuing anyway...
+) else (
+    echo Done
 )
 
 REM Run pre-flight checks
