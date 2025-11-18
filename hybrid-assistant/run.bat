@@ -28,6 +28,11 @@ set VENV_DIR=%SCRIPT_DIR%venv
 set PYTHON=%VENV_DIR%\Scripts\python.exe
 set PIP=%VENV_DIR%\Scripts\pip.exe
 
+REM Parse optional arg: --reinstall to force dependencies reinstall
+set FORCE_INSTALL=0
+if "%~1"=="--reinstall" set FORCE_INSTALL=1
+if "%~1"=="--force" set FORCE_INSTALL=1
+
 REM Create virtual environment if it doesn't exist
 if not exist "%VENV_DIR%" (
     <nul set /p ="Creating virtual environment... "
@@ -42,38 +47,30 @@ if not exist "%VENV_DIR%" (
     )
 )
 
-REM Activate venv and install/upgrade requirements
+REM Activate venv and install/upgrade requirements (skip if already done)
 echo.
 echo Installing dependencies...
 call "%VENV_DIR%\Scripts\activate.bat"
+
+if exist "%VENV_DIR%\.installed" (
+    if "%FORCE_INSTALL%"=="1" (
+        echo Reinstall forced by --reinstall flag; running install steps...
+    ) else (
+        echo Dependencies already installed; skipping installation. (Use --reinstall to force)
+        goto after_install
+    )
+)
+
 REM Use PowerShell to run pip commands with a simple spinner and capture output to logs
 <nul set /p ="Upgrading pip... "
-powershell -NoProfile -Command "
-    $exe = '%PYTHON%';
-    $args = '-m pip install --upgrade pip';
-    $log = 'pip_upgrade.log';
-    $psi = New-Object System.Diagnostics.ProcessStartInfo($exe, $args);
-    $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.UseShellExecute = $false;
-    $p = New-Object System.Diagnostics.Process; $p.StartInfo = $psi; $p.Start() | Out-Null;
-    while (-not $p.HasExited) { Write-Host -NoNewline '.'; Start-Sleep -Milliseconds 300 }
-    $out = $p.StandardOutput.ReadToEnd() + $p.StandardError.ReadToEnd();
-    $out | Out-File -FilePath $log -Encoding utf8;
-    if ($p.ExitCode -ne 0) { Write-Host ' Failed'; exit $p.ExitCode } else { Write-Host ' Done' }
-"
+powershell -NoProfile -Command "& { $exe = '%PYTHON%'; $args = '-m pip install --upgrade pip'; $log = 'pip_upgrade.log'; $psi = New-Object System.Diagnostics.ProcessStartInfo($exe, $args); $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.UseShellExecute = $false; $p = New-Object System.Diagnostics.Process; $p.StartInfo = $psi; $p.Start() | Out-Null; while (-not $p.HasExited) { Write-Host -NoNewline '.'; Start-Sleep -Milliseconds 300 }; $out = $p.StandardOutput.ReadToEnd() + $p.StandardError.ReadToEnd(); $out | Out-File -FilePath $log -Encoding utf8; if ($p.ExitCode -ne 0) { Write-Host ' Failed'; exit $p.ExitCode } else { Write-Host ' Done' } }"
 
 <nul set /p ="Installing requirements (this can take several minutes)... "
-powershell -NoProfile -Command "
-    $exe = '%PYTHON%';
-    $args = '-m pip install -r requirements.txt';
-    $log = 'install_requirements.log';
-    $psi = New-Object System.Diagnostics.ProcessStartInfo($exe, $args);
-    $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.UseShellExecute = $false;
-    $p = New-Object System.Diagnostics.Process; $p.StartInfo = $psi; $p.Start() | Out-Null;
-    while (-not $p.HasExited) { Write-Host -NoNewline '.'; Start-Sleep -Milliseconds 300 }
-    $out = $p.StandardOutput.ReadToEnd() + $p.StandardError.ReadToEnd();
-    $out | Out-File -FilePath $log -Encoding utf8;
-    if ($p.ExitCode -ne 0) { Write-Host ' Failed'; Write-Host 'WARNING: Some dependencies may have failed to install. See ' + $log; exit 0 } else { Write-Host ' Done' }
-"
+powershell -NoProfile -Command "& { $exe = '%PYTHON%'; $args = '-m pip install -r requirements.txt'; $log = 'install_requirements.log'; $psi = New-Object System.Diagnostics.ProcessStartInfo($exe, $args); $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.UseShellExecute = $false; $p = New-Object System.Diagnostics.Process; $p.StartInfo = $psi; $p.Start() | Out-Null; while (-not $p.HasExited) { Write-Host -NoNewline '.'; Start-Sleep -Milliseconds 300 }; $out = $p.StandardOutput.ReadToEnd() + $p.StandardError.ReadToEnd(); $out | Out-File -FilePath $log -Encoding utf8; if ($p.ExitCode -ne 0) { Write-Host ' Failed'; Write-Host 'WARNING: Some dependencies may have failed to install. See ' + $log; exit 0 } else { Write-Host ' Done' } }"
+
+:after_install
+REM Mark installation done if not forced to reinstall
+if exist "%VENV_DIR%" if not "%FORCE_INSTALL%"=="1" type nul > "%VENV_DIR%\.installed"
 
 REM Run pre-flight checks
 echo.
