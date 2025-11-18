@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 import json
 from typing import Optional, Dict
+import datetime
 
 class OfflineManager:
     """Manages offline mode and model caching"""
@@ -38,20 +39,29 @@ class OfflineManager:
             os.environ['TRANSFORMERS_OFFLINE'] = os.environ.get('TRANSFORMERS_OFFLINE', '0')
         else:
             os.environ['TRANSFORMERS_OFFLINE'] = '1'
-            print('Offline mode detected: forcing TRANSFORMERS_OFFLINE=1')
+            self.log_offline_status("No internet connection detected.")
             # Persist the offline status for diagnostics
             try:
                 self.log_status({'offline': True})
             except Exception:
                 pass
     
+    def log_offline_status(self, reason: str):
+        """Log offline status with timestamp and reason"""
+        status = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "reason": reason
+        }
+        with open(self.status_file, 'w') as f:
+            json.dump(status, f, indent=4)
+
     def check_internet(self) -> bool:
-        """Check if internet is available"""
+        """Check internet connectivity by pinging a reliable server"""
+        import subprocess
         try:
-            import socket
-            socket.create_connection(("8.8.8.8", 53), timeout=2)
+            subprocess.check_call(['ping', '-n', '1', '8.8.8.8'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
-        except (socket.timeout, socket.error, OSError):
+        except subprocess.CalledProcessError:
             return False
     
     def verify_ollama(self, host="http://localhost:11434") -> bool:

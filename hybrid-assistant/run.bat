@@ -19,6 +19,15 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Check internet connectivity
+ping -n 1 8.8.8.8 >nul 2>&1
+if errorlevel 1 (
+    echo WARNING: No internet connection detected. Forcing offline mode.
+    set TRANSFORMERS_OFFLINE=1
+) else (
+    set TRANSFORMERS_OFFLINE=0
+)
+
 REM Get script directory
 set SCRIPT_DIR=%~dp0
 cd /d "%SCRIPT_DIR%"
@@ -104,16 +113,7 @@ echo 3. Hybrid Mode (auto-detect, recommended)
 echo 4. Exit
 echo.
 
-set /p MODE="Enter your choice (1-4): "
-
-if "%MODE%"=="1" goto cpu_mode
-if "%MODE%"=="2" goto cuda_mode
-if "%MODE%"=="3" goto hybrid_mode
-if "%MODE%"=="4" goto exit_script
-
-echo Invalid choice. Defaulting to CPU mode...
-goto cpu_mode
-
+set
 :cpu_mode
 echo.
 echo Starting Hybrid Assistant in CPU mode...
