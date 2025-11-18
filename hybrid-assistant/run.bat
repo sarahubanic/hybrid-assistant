@@ -117,7 +117,14 @@ echo 3. Hybrid Mode (auto-detect, recommended)
 echo 4. Exit
 echo.
 
-set
+set /p MODE_SELECT=Enter your choice (1-4): 
+if "%MODE_SELECT%"=="1" goto cpu_mode
+if "%MODE_SELECT%"=="2" goto cuda_mode
+if "%MODE_SELECT%"=="3" goto hybrid_mode
+if "%MODE_SELECT%"=="4" goto exit_script
+echo Invalid selection. Defaulting to CPU mode.
+goto cpu_mode
+
 :cpu_mode
 echo.
 echo Starting Hybrid Assistant in CPU mode...
