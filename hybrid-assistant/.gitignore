@@ -34,3 +34,10 @@ Thumbs.db
 
 # Logs
 *.log
+desktop-tutorial/
+eco020 v2.0/
+ogledalo-pretrained/
+ogledalo-web/
+.ssh/
+.ssh.pub
+.venv_fresh/

@@ -1,7 +1,83 @@
+# 🚀 Hybrid Assistant
+![AsistentAI](ikona.png)
+
+A smart assistant combining **video recognition** and **LLM** (Large Language Model) for advanced object detection, chat, and web search.
+
+---
+
+## ✨ Features
+
+- **🎥 Video Recognition:** Detect objects in real-time using YOLO/Ultralytics.
+- **🤖 LLM Integration:** Use llama-cpp-python for chat, reasoning, and custom commands.
+- **🔍 DuckDuckGo Search:** Search the web directly from chat.
+- **🆕 Custom Object Addition:** Add new objects for detection via chat.
+- **💬 Chat Interface:** Interact with the assistant, ask questions, and control features.
+- **📸 Camera Control:** 
+  - Turn camera **on**: `turn cam on` (calls camera open function)
+  - Turn camera **off**: `turn cam off` (calls camera close function)
+- **⚡ .bat Loader:** Easy startup with provided batch script.
+- **📦 Requirements Management:** All dependencies listed in `requirements.txt`.
+
+---
+
+## 🛠️ Usage
+
+1. **Install dependencies:**  
+   `pip install -r requirements.txt`
+2. **Run the assistant:**  
+   `run.bat` or `python main.py`
+3. **Interact via chat:**  
+   - Ask questions about detected objects.
+   - Search the web: `search <query>`
+   - Add custom objects: `add object <name>`
+   - Control camera: `turn cam on` / `turn cam off`
+
+---
+
+## 🐥 DuckDuckGo Search
+
+- Use chat to search the web:  
+  `search <your query>`
+
+## 🆕 Custom Object Add
+
+- Add new objects for detection:  
+  `add object <object_name>`
+
+## 📸 Camera Control
+
+- **Turn On:**  
+  `turn cam on`
+- **Turn Off:**  
+  `turn cam off`
+
+---
+
+## ⚠️ Troubleshooting
+
+- **pip version warning:**  
+  Update pip: `python -m pip install --upgrade pip`
+- **Matplotlib warning:**  
+  Ensure compatible versions in `requirements.txt`.
+
+---
+
+## 📂 Project Structure
+
+- `main.py` — Main entry point
+- `video_recognition.py` — Object detection logic
+- `llm_chat.py` — LLM chat integration
+- `duckduck_search.py` — DuckDuckGo search
+- `requirements.txt` — Dependencies
+- `run.bat` — Startup script
+
+---
+
 ## Note on DuckDuckGo Search Library
 
 As of November 2025, the `ddgs` package (the successor to `duckduckgo-search`) could not be installed or imported in this environment. Therefore, the project continues to use `duckduckgo-search` for internet search features. If you see a deprecation warning, it is safe to ignore for now. Future updates may switch to `ddgs` if compatibility improves.
-# Hybrid Assistant
+
+## Hybrid Assistant
 
 A local, privacy-focused **face recognition and chatbot** application that combines camera-based visual detection with a local LLM backend. Teach the assistant to recognize faces and objects through the GUI or chat, get intelligent scene descriptions, and have conversations—all running locally and offline.
 
@@ -175,3 +251,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ---
 
 **Last Updated**: November 17, 2025
+
+## 🧠 LLM Backend Selection
+
+- **GROQ Backend:**
+  - If selected without a configured model, chat is disabled and a warning is shown.
+  - To enable chat, configure a GROQ model in settings.
