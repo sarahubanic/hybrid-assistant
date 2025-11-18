@@ -1,4 +1,3 @@
-from duckduckgo_search import DDGS
 import cv2
 import re
 import numpy as np
@@ -27,13 +26,6 @@ except Exception:
     Llama = None
 
 class DetectionGUI:
-    def internet_search(self, query, max_results=3):
-        try:
-            with DDGS() as ddgs:
-                results = ddgs.text(query, max_results=max_results)
-                return [r['body'] for r in results]
-        except Exception as e:
-            return [f"Greška u pretrazi: {e}"]
     def send_with_frame(self):
         """Placeholder for the 'Send + Img' button. Implement sending message with image here."""
         messagebox.showinfo("Send + Img", "This feature is not yet implemented.")

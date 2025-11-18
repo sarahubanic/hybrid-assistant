@@ -5,10 +5,6 @@ IF NOT EXIST .venv (
 CALL .venv\Scripts\activate.bat
 REM Ensure all requirements are installed
 pip install -r requirements.txt
-REM Ensure DuckDuckGo search package is installed
-pip install duckduckgo-search
-REM Ensure DuckDuckGo search package is installed
-pip install duckduckgo-search
 REM Ensure llama-cpp-python is installed
 pip install llama-cpp-python
 @echo off
