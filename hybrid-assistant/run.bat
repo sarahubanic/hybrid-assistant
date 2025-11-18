@@ -46,24 +46,34 @@ REM Activate venv and install/upgrade requirements
 echo.
 echo Installing dependencies...
 call "%VENV_DIR%\Scripts\activate.bat"
+REM Use PowerShell to run pip commands with a simple spinner and capture output to logs
 <nul set /p ="Upgrading pip... "
-%PIP% install --upgrade pip >pip_upgrade.log 2>&1
-if errorlevel 1 (
-    echo Failed
-    echo WARNING: pip upgrade failed. See pip_upgrade.log for details
-) else (
-    echo Done
-)
+powershell -NoProfile -Command "
+    $exe = '%PYTHON%';
+    $args = '-m pip install --upgrade pip';
+    $log = 'pip_upgrade.log';
+    $psi = New-Object System.Diagnostics.ProcessStartInfo($exe, $args);
+    $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.UseShellExecute = $false;
+    $p = New-Object System.Diagnostics.Process; $p.StartInfo = $psi; $p.Start() | Out-Null;
+    while (-not $p.HasExited) { Write-Host -NoNewline '.'; Start-Sleep -Milliseconds 300 }
+    $out = $p.StandardOutput.ReadToEnd() + $p.StandardError.ReadToEnd();
+    $out | Out-File -FilePath $log -Encoding utf8;
+    if ($p.ExitCode -ne 0) { Write-Host ' Failed'; exit $p.ExitCode } else { Write-Host ' Done' }
+"
 
 <nul set /p ="Installing requirements (this can take several minutes)... "
-%PIP% install -r requirements.txt >install_requirements.log 2>&1
-if errorlevel 1 (
-    echo Failed
-    echo WARNING: Some dependencies may have failed to install. See install_requirements.log
-    echo Continuing anyway...
-) else (
-    echo Done
-)
+powershell -NoProfile -Command "
+    $exe = '%PYTHON%';
+    $args = '-m pip install -r requirements.txt';
+    $log = 'install_requirements.log';
+    $psi = New-Object System.Diagnostics.ProcessStartInfo($exe, $args);
+    $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.UseShellExecute = $false;
+    $p = New-Object System.Diagnostics.Process; $p.StartInfo = $psi; $p.Start() | Out-Null;
+    while (-not $p.HasExited) { Write-Host -NoNewline '.'; Start-Sleep -Milliseconds 300 }
+    $out = $p.StandardOutput.ReadToEnd() + $p.StandardError.ReadToEnd();
+    $out | Out-File -FilePath $log -Encoding utf8;
+    if ($p.ExitCode -ne 0) { Write-Host ' Failed'; Write-Host 'WARNING: Some dependencies may have failed to install. See ' + $log; exit 0 } else { Write-Host ' Done' }
+"
 
 REM Run pre-flight checks
 echo.
