@@ -4,7 +4,7 @@ import numpy as np
 import pickle
 import requests
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext, simpledialog
+from tkinter import ttk, messagebox, scrolledtext, simpledialog, filedialog
 import PIL.Image, PIL.ImageTk
 import os
 import json
@@ -31,8 +31,124 @@ class DetectionGUI:
         messagebox.showinfo("Send + Img", "This feature is not yet implemented.")
 
     def start_learning(self):
-        """Placeholder for the 'Teach Me Something' button. Implement learning logic here."""
-        messagebox.showinfo("Teach Me Something", "Learning mode is not yet implemented.")
+        """Advanced 'Teach Me Something' dialog with preview, context, and face selector."""
+        import tkinter as tk
+        from tkinter import simpledialog, messagebox, filedialog, ttk
+        dialog = tk.Toplevel(self.window)
+        dialog.title("Teach Me Something")
+        dialog.geometry("420x520")
+        dialog.transient(self.window)
+        dialog.grab_set()
+
+        # Name
+        name_label = ttk.Label(dialog, text="Name:")
+        name_label.pack(anchor=tk.W, padx=10, pady=(10,0))
+        name_var = tk.StringVar()
+        name_entry = ttk.Entry(dialog, textvariable=name_var, width=32)
+        name_entry.pack(fill=tk.X, padx=10)
+
+        # Description
+        desc_label = ttk.Label(dialog, text="Description:")
+        desc_label.pack(anchor=tk.W, padx=10, pady=(10,0))
+        desc_text = tk.Text(dialog, height=3, width=32)
+        desc_text.pack(fill=tk.X, padx=10)
+
+        # Examples
+        examples_label = ttk.Label(dialog, text="Examples (one per line):")
+        examples_label.pack(anchor=tk.W, padx=10, pady=(10,0))
+        examples_text = tk.Text(dialog, height=3, width=32)
+        examples_text.pack(fill=tk.X, padx=10)
+
+        # Context
+        context_label = ttk.Label(dialog, text="Context:")
+        context_label.pack(anchor=tk.W, padx=10, pady=(10,0))
+        context_var = tk.StringVar(value="visual")
+        rb_visual = ttk.Radiobutton(dialog, text="Visual", variable=context_var, value="visual")
+        rb_face = ttk.Radiobutton(dialog, text="Face Recognition", variable=context_var, value="face")
+        rb_visual.pack(anchor=tk.W, padx=20)
+        rb_face.pack(anchor=tk.W, padx=20)
+
+        # Preview frame
+        preview_frame = ttk.LabelFrame(dialog, text="Pregled isečka", padding="5")
+        preview_frame.pack(fill=tk.X, padx=10, pady=(10, 10))
+        preview_size = (200, 200)
+        preview_canvas = tk.Canvas(preview_frame, width=preview_size[0], height=preview_size[1], bg='gray20')
+        preview_canvas.pack(anchor=tk.CENTER)
+
+        # Face selector
+        face_select_var = tk.StringVar(value="")
+        face_select_label = ttk.Label(preview_frame, text="Select face to save:")
+        face_select_combo = ttk.Combobox(preview_frame, textvariable=face_select_var, values=(list(self.face_labels.keys()) if hasattr(self, 'face_labels') else []), state='disabled', width=24)
+        face_select_label.pack(pady=(6,0))
+        face_select_combo.pack()
+
+        def _on_context_change(*args):
+            ctx = context_var.get()
+            try:
+                if ctx == 'face':
+                    preview_frame.config(text='Clip to save')
+                    faces = list(self.face_labels.keys()) if hasattr(self, 'face_labels') and self.face_labels else []
+                    face_select_combo['values'] = faces
+                    if faces:
+                        face_select_combo.config(state='readonly')
+                        if not face_select_var.get():
+                            face_select_var.set(faces[0])
+                    else:
+                        face_select_combo.config(state='disabled')
+                        face_select_var.set('')
+                else:
+                    preview_frame.config(text='Pregled isečka')
+                    face_select_combo.config(state='disabled')
+                    face_select_var.set('')
+            except Exception:
+                pass
+        try:
+            context_var.trace_add('write', _on_context_change)
+        except Exception:
+            context_var.trace('w', _on_context_change)
+
+        # Image selection
+        img_path_var = tk.StringVar()
+        def select_image():
+            path = filedialog.askopenfilename(title="Select image", filetypes=[("Image Files", "*.png;*.jpg;*.jpeg")])
+            if path:
+                img_path_var.set(path)
+                # Optionally, show preview (not implemented here)
+        img_btn = ttk.Button(dialog, text="Select Image", command=select_image)
+        img_btn.pack(pady=(5,0))
+
+        # Save logic
+        def save():
+            name = name_var.get().strip()
+            desc = desc_text.get("1.0", tk.END).strip()
+            examples = [ex.strip() for ex in examples_text.get("1.0", tk.END).splitlines() if ex.strip()]
+            context = context_var.get()
+            try:
+                if context == 'face' and face_select_var.get():
+                    sel = face_select_var.get().strip()
+                    if sel:
+                        name = sel
+            except Exception:
+                pass
+            if not name:
+                messagebox.showwarning("Input Required", "Please provide a name", parent=dialog)
+                return
+            if not desc:
+                messagebox.showwarning("Input Required", "Please provide a description", parent=dialog)
+                return
+            # Save to knowledge base
+            self.knowledge_base[name] = {
+                'description': desc,
+                'examples': examples,
+                'context': context,
+                'learned_on': datetime.now().isoformat()
+            }
+            self.save_knowledge_base()
+            messagebox.showinfo("Teach Me Something", f"Successfully added '{name}' to the knowledge base.", parent=dialog)
+            dialog.destroy()
+        save_btn = ttk.Button(dialog, text="Save", command=save)
+        save_btn.pack(pady=10)
+        dialog.wait_window()
 
     def append_to_chat(self, message):
         """Append a message to the chat display and history"""
@@ -332,7 +448,7 @@ class DetectionGUI:
         if CLIPModel is not None and torch is not None:
              self._init_clip_model() # Inicijalizuj model
         else:
-            print("[CLIP] Transformers/Torch nije dostupan. Vizuelno prepoznavanje je onemogućeno.")
+            print("[CLIP] Transformers/Torch nije dostupno. Vizuelno prepoznavanje je onemogućeno.")
             
         # 3. ORB kod je uklonjen/onemogućen
         self.visual_db_file = os.path.join(self.learning_dir, "visual_db.pkl")
@@ -1479,7 +1595,6 @@ Assistant:"""
                 if self.dialog_update_running:
                     # Ne crtaj na glavnom canvasu dok je dialog otvoren
                     pass 
-                
                 else:
                     # --- IZMENA (Zahtev 1): Logika za skaliranje + PAUZIRANJE KADA JE DIALOG OTVOREN ---
                     if self.dialog_update_running:
