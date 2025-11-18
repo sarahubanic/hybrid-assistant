@@ -39,7 +39,7 @@ class DetectionGUI:
             self.chat_display.insert(tk.END, message + "\n\n")
             self.chat_display.see(tk.END)
             self.chat_display.configure(state=tk.DISABLED)
-        if hasattr(self, 'chat_history'):
+        def __init__(self, window, window_title):
             self.chat_history.append(message)
             self.save_chat_history()
             
@@ -61,10 +61,10 @@ class DetectionGUI:
         # Create necessary directories
         os.makedirs(self.models_dir, exist_ok=True)
         os.makedirs(self.learning_dir, exist_ok=True)
-        
-        # Initialize variables
-        self.vid = None
-        self.is_camera_on = False
+        # Enable auto-describe for practical mode
+        self.auto_describe = True
+        # Backend selection: default to 'ollama' (lightweight)
+        self.backend = os.environ.get('HA_BACKEND', 'ollama')
         self.current_detections = []
         self.knowledge_base = self.load_knowledge_base()
         self.chat_history = self.load_chat_history()
@@ -121,6 +121,8 @@ class DetectionGUI:
         self.dialog_is_frozen = False
         self.dialog_frozen_frame = None
         self.dialog_update_running = False
+        # Track greeted persons for session
+        self.greeted_persons = set()
         
         self.dialog_preview_canvas = None
         self.dialog_preview_photo = None
@@ -1267,47 +1269,50 @@ Assistant:"""
         #     ...save logic...
 
     def process_and_draw_frame(self, frame):
-        """Process frame, draw detections, and filter objects by higher threshold."""
+        """Process frame, draw detections, and filter objects by higher threshold and color logic."""
         frame_copy = frame.copy()
-        
         if self.yolo_model:
             results = self.yolo_model(frame_copy, verbose=False)
             detected = []
-            
             for r in results:
                 for box in r.boxes:
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     conf = float(box.conf[0])
                     cls = int(box.cls[0])
                     name = r.names[cls]
-                    
-                    if conf > 0.5:
+                    # --- Updated threshold and color logic ---
+                    if conf > 0.7:
                         try:
                             crop = frame_copy[y1:y2, x1:x2]
                             final_name = name
                             final_score = conf
-                            
                             if crop is not None and crop.size > 0:
-                                # --- IZMENA (Zahtev 2): Poziv match_visual (sada CLIP-only) ---
                                 match_name, match_score = self.match_visual(crop, return_score=True)
                                 if match_name:
                                     final_name = match_name
                                     final_score = match_score
-                            
                             if final_name not in detected:
                                 detected.append(final_name)
-                            
-                            box_color = (0, 255, 0) if final_score > 0.7 else (0, 255, 255)
-                            text_color = (0, 255, 0) if final_score > 0.7 else (0, 255, 255)
-                            line_width = 3 if final_score > 0.7 else 2
-                            text_size = 0.7 if final_score > 0.7 else 0.5
+                            # Color: green >0.8, yellow 0.7-0.8, red otherwise
+                            if final_score > 0.8:
+                                box_color = (0, 255, 0)
+                                text_color = (0, 255, 0)
+                                line_width = 3
+                                text_size = 0.8
+                            elif final_score > 0.7:
+                                box_color = (0, 255, 255)
+                                text_color = (0, 255, 255)
+                                line_width = 2
+                                text_size = 0.7
+                            else:
+                                box_color = (0, 0, 255)
+                                text_color = (0, 0, 255)
+                                line_width = 2
+                                text_size = 0.6
                             cv2.rectangle(frame_copy, (x1, y1), (x2, y2), box_color, line_width)
-                            cv2.putText(frame_copy, f"{final_name} {final_score:.2f}", 
-                                      (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX,
-                                      text_size, text_color, 2)
+                            cv2.putText(frame_copy, f"{final_name} {final_score:.2f}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, text_size, text_color, 2)
                         except Exception as e:
                             print(f"[ERROR] Detection priority check failed: {e}")
-            
             person_names = []
             try:
                 if hasattr(self, 'face_cascade') and self.face_cascade is not None:
@@ -1324,47 +1329,59 @@ Assistant:"""
                                     detected.append(name)
                                     if not self.dialog_update_running:
                                         print(f"[FACE] Recognized person: {name} (confidence: {conf:.1f})")
-                                face_color = (0, 255, 0) if conf < 80 else (255, 0, 0)
-                                text_color = (0, 255, 0) if conf < 80 else (255, 0, 0)
-                                line_width = 3 if conf < 80 else 2
-                                text_size = 0.7 if conf < 80 else 0.6
+                                # Face rectangle color: green if conf > 90, blue otherwise
+                                if conf is not None and conf > 90:
+                                    face_color = (0, 255, 0)
+                                    text_color = (0, 255, 0)
+                                else:
+                                    face_color = (255, 0, 0)
+                                    text_color = (255, 0, 0)
+                                line_width = 3 if conf is not None and conf > 90 else 2
+                                text_size = 0.8 if conf is not None and conf > 90 else 0.7
                                 cv2.rectangle(frame_copy, (fx, fy), (fx+fw, fy+fh), face_color, line_width)
                                 cv2.putText(frame_copy, f"{name} ({conf:.1f})", (fx, fy-10), cv2.FONT_HERSHEY_SIMPLEX, text_size, text_color, 2)
+                                # Greet and load session for new persons
+                                if name not in self.greeted_persons:
+                                    self.greeted_persons.add(name)
+                                    self.append_to_chat(f"Assistant: Hello, {name}! Welcome back.")
+                                    # Load personalized session/chat history if available
+                                    if hasattr(self, 'chat_history') and self.chat_history:
+                                        person_history = [msg for msg in self.chat_history if name in msg]
+                                        if person_history:
+                                            self.append_to_chat(f"Assistant: Here is your recent session, {name}:\n" + '\n'.join(person_history[-5:]))
                             else:
                                 person_names.append("Unknown Person")
                                 if "person" in detected and "Unknown Person" not in detected:
                                     detected.append("Unknown Person")
                                 cv2.rectangle(frame_copy, (fx, fy), (fx+fw, fy+fh), (0, 0, 255), 2)
-                                cv2.putText(frame_copy, "Unknown Person", (fx, fy-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,0,255), 2)
+                                cv2.putText(frame_copy, "Unknown Person", (fx, fy-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,255), 2)
+                                # Greet unknown person
+                                if "Unknown Person" not in self.greeted_persons:
+                                    self.greeted_persons.add("Unknown Person")
+                                    self.append_to_chat("Assistant: Hello, I see a new person! If you'd like to introduce yourself, please type your name.")
             except Exception as e:
                 print(f"[FACE] Error in face recognition: {e}")
-
             try:
-                # --- IZMENA (Zahtev 2): match_visual (CLIP-only) ---
                 if not detected:
                     match_name = self.match_visual(frame_copy)
                     if match_name:
                         detected.append(match_name)
             except Exception:
                 pass
-            
             corrected_detected = []
             for label in detected:
                 corrected_label = self.apply_correction(label)
                 corrected_detected.append(corrected_label)
             detected = corrected_detected
-            
             if not self.dialog_update_running:
                 if set(detected) != set(self.current_detections):
                     self.current_detections = detected
                     print(f"[DETECTION] Updated detections: {detected}")
                     if detected:
                         self.status.configure(text=f"Detected: {', '.join(detected)}")
-                        
                         recognized_people = [d for d in detected if d in self.knowledge_base and self.knowledge_base[d].get('context') == 'face']
                         objects = [d for d in detected if d not in recognized_people]
                         unknown_people = [d for d in detected if d == "Unknown Person"]
-                        
                         description_parts = []
                         if recognized_people:
                             description_parts.append(f"I see {', '.join(recognized_people)}!")
@@ -1373,15 +1390,11 @@ Assistant:"""
                                     person_info = self.knowledge_base[person].get('description', '')
                                     if person_info:
                                         description_parts.append(f"{person}: {person_info}")
-                        
                         if unknown_people:
                             description_parts.append("I also detect an unknown person.")
-                        
                         if objects:
                             description_parts.append(f"I also see: {', '.join(objects)}.")
-                        
                         description_prompt = " ".join(description_parts) if description_parts else f"Objects detected: {', '.join(detected)}."
-                        
                         print(f"[DETECTION] Generating response for: {description_prompt}")
                         if getattr(self, 'auto_describe', False):
                             try:
@@ -1391,11 +1404,9 @@ Assistant:"""
                                     context_parts.append("Permanent Instructions (Must Follow):")
                                     context_parts.extend([f"- {rule}" for rule in permanent_rules])
                                     context_parts.append("\n")
-                                
                                 context_parts.append(f"Scene context: {description_prompt}")
                                 context_parts.append("Instruction: Describe this scene in a friendly way.")
                                 model_prompt = "\n".join(context_parts)
-                                
                                 if getattr(self, 'backend', 'local') == 'ollama':
                                     response_text = self.ollama_generate(
                                         model_prompt,
@@ -1409,7 +1420,6 @@ Assistant:"""
                                         stop=["\nUser:", "User:", "<end_of_turn>"]
                                     )
                                     response_text = response['choices'][0]['text'].strip()
-                                
                                 if response_text and not response_text.startswith("[OLLAMA"):
                                     self.append_to_chat(f"Assistant: {response_text}")
                                     print(f"[DETECTION] Response generated: {response_text[:80]}...")
@@ -1419,7 +1429,6 @@ Assistant:"""
                             print("[DETECTION] auto_describe disabled; skipping LLM call. Press 'Describe Scene' to generate description.")
                     else:
                         self.status.configure(text="No objects detected")
-        
         return frame_copy
 
 
